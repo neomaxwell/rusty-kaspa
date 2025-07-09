@@ -2486,6 +2486,7 @@ dependencies = [
  "kaspa-muhash",
  "kaspa-txscript-errors",
  "kaspa-utils",
+ "log",
  "rand",
  "secp256k1",
  "serde",
