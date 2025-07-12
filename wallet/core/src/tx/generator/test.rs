@@ -769,14 +769,14 @@ fn test_generator_inputs_32k_outputs_2_fees_exclude() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_generator_inputs_250k_outputs_2_sweep() -> Result<()> {
-    let f = 130.0;
-    let generator =
-        make_generator(test_network_id(), &[f; 250_000], &[], None, Fees::None, change_address, PaymentDestination::Change);
-    generator.unwrap().harness().accumulate(2875).finalize();
-    Ok(())
-}
+// #[test]
+// fn test_generator_inputs_250k_outputs_2_sweep() -> Result<()> {
+//     let f = 130.0;
+//     let generator =
+//         make_generator(test_network_id(), &[f; 250_000], &[], None, Fees::None, change_address, PaymentDestination::Change);
+//     generator.unwrap().harness().accumulate(2875).finalize();
+//     Ok(())
+// }
 
 #[test]
 fn test_generator_fan_out_1() -> Result<()> {

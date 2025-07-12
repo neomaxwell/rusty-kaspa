@@ -28,12 +28,16 @@ pub enum ScriptClass {
     PubKeyECDSA,
     /// Pay to script hash
     ScriptHash,
+    /// Pay to Taproot
+    Taproot,
 }
 
 const NON_STANDARD: &str = "nonstandard";
 const PUB_KEY: &str = "pubkey";
 const PUB_KEY_ECDSA: &str = "pubkeyecdsa";
 const SCRIPT_HASH: &str = "scripthash";
+
+const TAPROOT: &str = "taproot";
 
 impl ScriptClass {
     pub fn from_script(script_public_key: &ScriptPublicKey) -> Self {
@@ -81,12 +85,22 @@ impl ScriptClass {
         (script_public_key[34] == opcodes::codes::OpEqual)
     }
 
+    /// Returns true if the script is in the standard
+    /// pay-to-taproot (P2TR) format, false otherwise.
+    #[inline(always)]
+    pub fn is_pay_to_taproot(script_public_key: &[u8]) -> bool {
+        (script_public_key.len() == 34) && // 2 opcodes number + 32 data
+        (script_public_key[0] == opcodes::codes::OpTrue) &&
+        (script_public_key[1] == opcodes::codes::OpData32)
+    }
+
     fn as_str(&self) -> &'static str {
         match self {
             ScriptClass::NonStandard => NON_STANDARD,
             ScriptClass::PubKey => PUB_KEY,
             ScriptClass::PubKeyECDSA => PUB_KEY_ECDSA,
             ScriptClass::ScriptHash => SCRIPT_HASH,
+            ScriptClass::Taproot => TAPROOT,
         }
     }
 
@@ -96,6 +110,7 @@ impl ScriptClass {
             ScriptClass::PubKey => MAX_SCRIPT_PUBLIC_KEY_VERSION,
             ScriptClass::PubKeyECDSA => MAX_SCRIPT_PUBLIC_KEY_VERSION,
             ScriptClass::ScriptHash => MAX_SCRIPT_PUBLIC_KEY_VERSION,
+            ScriptClass::Taproot => MAX_SCRIPT_PUBLIC_KEY_VERSION,
         }
     }
 }
@@ -115,6 +130,7 @@ impl FromStr for ScriptClass {
             PUB_KEY => Ok(ScriptClass::PubKey),
             PUB_KEY_ECDSA => Ok(ScriptClass::PubKeyECDSA),
             SCRIPT_HASH => Ok(ScriptClass::ScriptHash),
+            TAPROOT => Ok(ScriptClass::Taproot),
             _ => Err(Error::InvalidScriptClass(script_class.to_string())),
         }
     }
@@ -134,6 +150,7 @@ impl From<Version> for ScriptClass {
             Version::PubKey => ScriptClass::PubKey,
             Version::PubKeyECDSA => ScriptClass::PubKeyECDSA,
             Version::ScriptHash => ScriptClass::ScriptHash,
+            Version::Taproot => ScriptClass::Taproot,
         }
     }
 }
