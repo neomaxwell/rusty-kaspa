@@ -100,6 +100,8 @@ fn parse_script<T: VerifiableTransaction, Reused: SigHashReusedValues>(
     script.iter().batching(|it| deserialize_next_opcode(it))
 }
 
+fn parse_witness(script: &[u8]) {}
+
 /// Determines the exact number of signature operations executed in a transaction input
 /// by simulating the script execution. Takes into account conditional branches and only
 /// counts signature operations that are actually executed.
@@ -397,6 +399,9 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         if let Some(s) = scripts.iter().find(|e| e.len() > MAX_SCRIPTS_SIZE) {
             return Err(TxScriptError::ScriptSize(s.len(), MAX_SCRIPTS_SIZE));
         }
+
+        let is_p2tr = matches!(script_class, ScriptClass::Taproot);
+        if is_p2tr {}
 
         let is_p2sh = matches!(script_class, ScriptClass::ScriptHash);
         let mut saved_stack: Option<Vec<Vec<u8>>> = None;
