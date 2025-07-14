@@ -1,21 +1,28 @@
-use crate::opcodes::codes::{OpData32, OpTrue};
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use kaspa_consensus_core::tx::ScriptPublicKey;
 
 pub struct Taproot {}
 
-// impl TryFrom {}
-
-#[derive(Debug)]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub struct Witness {
-    stack: Vec<Vec<u8>>,
+    content: Vec<u8>,
+    witness_elements: usize,
+    indices_start: usize,
 }
 
 impl TryFrom<&[u8]> for Witness {
     type Error = std::io::Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let stack = BorshDeserialize::try_from_slice(bytes)?;
-        Ok(Self { stack })
+        let this = BorshDeserialize::try_from_slice(bytes)?;
+        Ok(this)
+    }
+}
+
+impl TryFrom<&Witness> for Vec<u8> {
+    type Error = std::io::Error;
+
+    fn try_from(witness: &Witness) -> Result<Self, Self::Error> {
+        borsh::to_vec(witness)
     }
 }
