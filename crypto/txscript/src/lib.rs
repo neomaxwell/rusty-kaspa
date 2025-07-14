@@ -73,7 +73,7 @@ pub struct SigCacheKey {
 }
 
 enum ScriptSource<'a, T: VerifiableTransaction> {
-    TxInput { tx: &'a T, input: &'a TransactionInput, idx: usize, utxo_entry: &'a UtxoEntry, is_p2sh: bool },
+    TxInput { tx: &'a T, input: &'a TransactionInput, idx: usize, utxo_entry: &'a UtxoEntry },
     StandAloneScripts(Vec<&'a [u8]>),
 }
 
@@ -272,15 +272,11 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         kip10_enabled: bool,
         runtime_sig_op_counting: bool,
     ) -> Self {
-        let script_public_key = utxo_entry.script_public_key.script();
-        // The script_public_key in P2SH is just validating the hash on the OpMultiSig script
-        // the user provides
-        let is_p2sh = ScriptClass::is_pay_to_script_hash(script_public_key);
         assert!(input_idx < tx.tx().inputs.len());
         Self {
             dstack: Default::default(),
             astack: Default::default(),
-            script_source: ScriptSource::TxInput { tx, input, idx: input_idx, utxo_entry, is_p2sh },
+            script_source: ScriptSource::TxInput { tx, input, idx: input_idx, utxo_entry },
             reused_values,
             sig_cache,
             cond_stack: Default::default(),
@@ -374,15 +370,16 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
     }
 
     pub fn execute(&mut self) -> Result<(), TxScriptError> {
-        let (scripts, is_p2sh) = match &self.script_source {
-            ScriptSource::TxInput { input, utxo_entry, is_p2sh, .. } => {
+        let (scripts, script_class) = match &self.script_source {
+            ScriptSource::TxInput { input, utxo_entry, .. } => {
                 if utxo_entry.script_public_key.version() > MAX_SCRIPT_PUBLIC_KEY_VERSION {
                     trace!("The version of the scriptPublicKey is higher than the known version - the Execute function returns true.");
                     return Ok(());
                 }
-                (vec![input.signature_script.as_slice(), utxo_entry.script_public_key.script()], *is_p2sh)
+                let script_class = ScriptClass::from(&utxo_entry.script_public_key);
+                (vec![input.signature_script.as_slice(), utxo_entry.script_public_key.script()], script_class)
             }
-            ScriptSource::StandAloneScripts(scripts) => (scripts.clone(), false),
+            ScriptSource::StandAloneScripts(scripts) => (scripts.clone(), ScriptClass::NonStandard),
         };
 
         // TODO: run all in same iterator?
@@ -401,12 +398,12 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             return Err(TxScriptError::ScriptSize(s.len(), MAX_SCRIPTS_SIZE));
         }
 
+        let is_p2sh = matches!(script_class, ScriptClass::ScriptHash);
         let mut saved_stack: Option<Vec<Vec<u8>>> = None;
         // try_for_each quits only if an error occurred. So, we always run over all scripts if
         // each is successful
         scripts.iter().enumerate().filter(|(_, s)| !s.is_empty()).try_for_each(|(idx, s)| {
-            let verify_only_push =
-                idx == 0 && matches!(self.script_source, ScriptSource::TxInput { tx: _, input: _, idx: _, utxo_entry: _, is_p2sh: _ });
+            let verify_only_push = idx == 0 && matches!(self.script_source, ScriptSource::TxInput { .. });
             // Save script in p2sh
             if is_p2sh && idx == 1 {
                 saved_stack = Some(self.dstack.clone());

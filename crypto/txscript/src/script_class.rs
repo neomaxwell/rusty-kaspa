@@ -40,23 +40,6 @@ const SCRIPT_HASH: &str = "scripthash";
 const TAPROOT: &str = "taproot";
 
 impl ScriptClass {
-    pub fn from_script(script_public_key: &ScriptPublicKey) -> Self {
-        let script_public_key_ = script_public_key.script();
-        if script_public_key.version() == MAX_SCRIPT_PUBLIC_KEY_VERSION {
-            if Self::is_pay_to_pubkey(script_public_key_) {
-                ScriptClass::PubKey
-            } else if Self::is_pay_to_pubkey_ecdsa(script_public_key_) {
-                Self::PubKeyECDSA
-            } else if Self::is_pay_to_script_hash(script_public_key_) {
-                Self::ScriptHash
-            } else {
-                ScriptClass::NonStandard
-            }
-        } else {
-            ScriptClass::NonStandard
-        }
-    }
-
     // Returns true if the script passed is a pay-to-pubkey
     // transaction, false otherwise.
     #[inline(always)]
@@ -155,6 +138,25 @@ impl From<Version> for ScriptClass {
     }
 }
 
+impl From<&ScriptPublicKey> for ScriptClass {
+    fn from(script_public_key: &ScriptPublicKey) -> Self {
+        if script_public_key.version() == MAX_SCRIPT_PUBLIC_KEY_VERSION {
+            let script = script_public_key.script();
+            if Self::is_pay_to_pubkey(script) {
+                ScriptClass::PubKey
+            } else if Self::is_pay_to_pubkey_ecdsa(script) {
+                Self::PubKeyECDSA
+            } else if Self::is_pay_to_script_hash(script) {
+                Self::ScriptHash
+            } else {
+                ScriptClass::NonStandard
+            }
+        } else {
+            ScriptClass::NonStandard
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use kaspa_consensus_core::tx::ScriptVec;
@@ -213,7 +215,7 @@ mod tests {
 
         for test in tests {
             let script_public_key = ScriptPublicKey::new(test.version, ScriptVec::from_iter(test.script.iter().copied()));
-            assert_eq!(test.class, ScriptClass::from_script(&script_public_key), "{} wrong script class", test.name);
+            assert_eq!(test.class, ScriptClass::from(&script_public_key), "{} wrong script class", test.name);
         }
     }
 }

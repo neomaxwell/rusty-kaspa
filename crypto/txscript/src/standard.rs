@@ -80,7 +80,7 @@ pub fn pay_to_script_hash_signature_script(redeem_script: Vec<u8>, signature: Ve
 ///    or use `address.version` directly instead, where address is the successfully
 ///    returned address.
 pub fn extract_script_pub_key_address(script_public_key: &ScriptPublicKey, prefix: Prefix) -> Result<Address, TxScriptError> {
-    let class = ScriptClass::from_script(script_public_key);
+    let class = ScriptClass::from(script_public_key);
     if script_public_key.version() > class.version() {
         return Err(TxScriptError::PubKeyFormat);
     }
