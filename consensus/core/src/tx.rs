@@ -7,6 +7,7 @@
 #![allow(non_snake_case)]
 
 mod script_public_key;
+mod taproot;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use kaspa_utils::hex::ToHex;
@@ -24,6 +25,7 @@ use std::{
     ops::Range,
     str::{self},
 };
+pub use taproot::Witness;
 use wasm_bindgen::prelude::*;
 
 use crate::mass::{ContextualMasses, NonContextualMasses};
@@ -94,6 +96,9 @@ pub struct TransactionInput {
     #[serde(with = "serde_bytes")]
     pub signature_script: Vec<u8>, // TODO: Consider using SmallVec
     pub sequence: u64,
+
+    // TODO
+    // pub witness: Witness,
 
     // TODO: Since this field is used for calculating mass context free, and we already commit
     // to the mass in a dedicated field (on the tx level), it follows that this field is no longer

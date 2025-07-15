@@ -309,6 +309,11 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
     }
 
     #[inline]
+    pub fn is_tx_input_script(&self) -> bool {
+        matches!(self.script_source, ScriptSource::TxInput { .. })
+    }
+
+    #[inline]
     pub fn is_executing(&self) -> bool {
         self.cond_stack.is_empty() || *self.cond_stack.last().expect("Checked not empty") == OpCond::True
     }
@@ -335,7 +340,8 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         }
     }
 
-    fn execute_script(&mut self, script: &[u8], verify_only_push: bool) -> Result<(), TxScriptError> {
+    fn execute_script(&mut self, idx: usize, script: &[u8]) -> Result<(), TxScriptError> {
+        let check_push_opcode = idx == 0 && self.is_tx_input_script();
         let script_result = parse_script(script).try_for_each(|opcode| {
             let opcode = opcode?;
             if opcode.is_disabled() {
@@ -346,7 +352,7 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
                 return Err(TxScriptError::OpcodeReserved(format!("{:?}", opcode)));
             }
 
-            if verify_only_push && !opcode.is_push_opcode() {
+            if check_push_opcode && !opcode.is_push_opcode() {
                 return Err(TxScriptError::SignatureScriptNotPushOnly);
             }
 
@@ -369,6 +375,38 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         self.num_ops = 0; // number of ops is per script.
 
         script_result
+    }
+
+    fn execute_standard<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
+    where
+        I: Iterator<Item = (usize, &'s [u8])>,
+    {
+        scripts.try_for_each(|(idx, script)| self.execute_script(idx, script))
+    }
+
+    fn execute_p2sh<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
+    where
+        I: Iterator<Item = (usize, &'s [u8])>,
+    {
+        let mut saved_stack: Option<Vec<Vec<u8>>> = None;
+        scripts.try_for_each(|(idx, script)| {
+            if idx == 1 {
+                saved_stack = Some(self.dstack.clone());
+            }
+            self.execute_script(idx, script)
+        })?;
+
+        self.check_error_condition(false)?;
+        self.dstack = saved_stack.ok_or(TxScriptError::EmptyStack)?;
+        let script = self.dstack.pop().ok_or(TxScriptError::EmptyStack)?;
+        self.execute_script(1, script.as_slice())
+    }
+
+    fn execute_p2tr<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
+    where
+        I: Iterator<Item = (usize, &'s [u8])>,
+    {
+        todo!()
     }
 
     pub fn execute(&mut self) -> Result<(), TxScriptError> {
@@ -400,31 +438,15 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             return Err(TxScriptError::ScriptSize(s.len(), MAX_SCRIPTS_SIZE));
         }
 
-        let is_p2tr = matches!(script_class, ScriptClass::Taproot);
-        if is_p2tr {}
+        let scripts = scripts.into_iter().enumerate().filter(|(_, s)| !s.is_empty());
 
-        let is_p2sh = matches!(script_class, ScriptClass::ScriptHash);
-        let mut saved_stack: Option<Vec<Vec<u8>>> = None;
-        // try_for_each quits only if an error occurred. So, we always run over all scripts if
-        // each is successful
-        scripts.iter().enumerate().filter(|(_, s)| !s.is_empty()).try_for_each(|(idx, s)| {
-            let verify_only_push = idx == 0 && matches!(self.script_source, ScriptSource::TxInput { .. });
-            // Save script in p2sh
-            if is_p2sh && idx == 1 {
-                saved_stack = Some(self.dstack.clone());
-            }
-            self.execute_script(s, verify_only_push)
-        })?;
+        match script_class {
+            ScriptClass::Taproot => self.execute_p2tr(scripts),
+            ScriptClass::ScriptHash => self.execute_p2sh(scripts),
+            _ => self.execute_standard(scripts),
+        }?;
 
-        if is_p2sh {
-            self.check_error_condition(false)?;
-            self.dstack = saved_stack.ok_or(TxScriptError::EmptyStack)?;
-            let script = self.dstack.pop().ok_or(TxScriptError::EmptyStack)?;
-            self.execute_script(script.as_slice(), false)?
-        }
-
-        self.check_error_condition(true)?;
-        Ok(())
+        self.check_error_condition(true)
     }
 
     // check_error_condition is called whenever we finish a chunk of the scripts
