@@ -25,7 +25,6 @@ use std::{
     ops::Range,
     str::{self},
 };
-pub use taproot::Witness;
 use wasm_bindgen::prelude::*;
 
 use crate::mass::{ContextualMasses, NonContextualMasses};

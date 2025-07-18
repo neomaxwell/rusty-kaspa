@@ -523,8 +523,7 @@ dependencies = [
 [[package]]
 name = "bitcoin"
 version = "0.32.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad8929a18b8e33ea6b3c09297b687baaa71fb1b97353243a3f1029fad5c59c5b"
+source = "git+https://github.com/neomaxwell/rust-bitcoin.git?branch=bitcoin-0.32.6#28f77e10dfc34dd6091286b5371489b0e70be81a"
 dependencies = [
  "base58ck",
  "bech32",
@@ -2549,6 +2548,7 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "bincode",
+ "bitcoin",
  "borsh",
  "cfg-if 1.0.0",
  "criterion",

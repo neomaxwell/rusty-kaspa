@@ -1,4 +1,4 @@
-use bitcoin::Witness as BtcWitness;
+use bitcoin::{witness::P2TrSpend, Witness as BtcWitness};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[derive(Debug)]
@@ -24,3 +24,11 @@ impl TryFrom<&Witness> for Vec<u8> {
         borsh::to_vec(&slice)
     }
 }
+
+impl<'a> From<&'a Witness> for Option<P2TrSpend<'a>> {
+    fn from(witness: &'a Witness) -> Self {
+        P2TrSpend::from_witness(&witness.inner)
+    }
+}
+
+impl Witness {}

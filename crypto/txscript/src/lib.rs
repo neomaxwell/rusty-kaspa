@@ -377,19 +377,13 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         script_result
     }
 
-    fn execute_standard<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
-    where
-        I: Iterator<Item = (usize, &'s [u8])>,
-    {
-        scripts.try_for_each(|(idx, script)| self.execute_script(idx, script))
+    fn execute_standard(&mut self, scripts: &[&[u8]]) -> Result<(), TxScriptError> {
+        scripts.iter().enumerate().filter(|(_, s)| !s.is_empty()).try_for_each(|(idx, script)| self.execute_script(idx, script))
     }
 
-    fn execute_p2sh<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
-    where
-        I: Iterator<Item = (usize, &'s [u8])>,
-    {
+    fn execute_p2sh(&mut self, scripts: &[&[u8]]) -> Result<(), TxScriptError> {
         let mut saved_stack: Option<Vec<Vec<u8>>> = None;
-        scripts.try_for_each(|(idx, script)| {
+        scripts.iter().enumerate().filter(|(_, s)| !s.is_empty()).try_for_each(|(idx, script)| {
             if idx == 1 {
                 saved_stack = Some(self.dstack.clone());
             }
@@ -402,10 +396,8 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
         self.execute_script(1, script.as_slice())
     }
 
-    fn execute_p2tr<'s, I>(&mut self, mut scripts: I) -> Result<(), TxScriptError>
-    where
-        I: Iterator<Item = (usize, &'s [u8])>,
-    {
+    fn execute_p2tr(&mut self, witness: &[u8], script_public_key: &[u8]) -> Result<(), TxScriptError> {
+        let witness = Witness::try_from(witness).map_err(|_| TxScriptError::InvalidTaprootWitness)?;
         todo!()
     }
 
@@ -438,12 +430,10 @@ impl<'a, T: VerifiableTransaction, Reused: SigHashReusedValues> TxScriptEngine<'
             return Err(TxScriptError::ScriptSize(s.len(), MAX_SCRIPTS_SIZE));
         }
 
-        let scripts = scripts.into_iter().enumerate().filter(|(_, s)| !s.is_empty());
-
         match script_class {
-            ScriptClass::Taproot => self.execute_p2tr(scripts),
-            ScriptClass::ScriptHash => self.execute_p2sh(scripts),
-            _ => self.execute_standard(scripts),
+            ScriptClass::Taproot => self.execute_p2tr(scripts[0], scripts[1]),
+            ScriptClass::ScriptHash => self.execute_p2sh(&scripts),
+            _ => self.execute_standard(&scripts),
         }?;
 
         self.check_error_condition(true)
